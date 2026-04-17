@@ -1,0 +1,7 @@
+bin/
+obj/
+_coverage_shadow/
+coverage-report/
+*.user
+.vs/
+.idea/
