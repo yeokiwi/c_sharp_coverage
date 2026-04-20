@@ -159,7 +159,7 @@ public sealed class CoverageRewriter : CSharpSyntaxRewriter
         if (node.ExpressionBody != null && node.Body == null)
         {
             var ret = node.Kind() == SyntaxKind.GetAccessorDeclaration
-                ? (StatementSyntax)SyntaxFactory.ReturnStatement(node.ExpressionBody.Expression)
+                ? (StatementSyntax)MakeReturn(node.ExpressionBody.Expression)
                 : SyntaxFactory.ExpressionStatement(node.ExpressionBody.Expression);
             var body = SyntaxFactory.Block(ret);
             node = node.WithExpressionBody(null).WithBody(body)
@@ -173,7 +173,7 @@ public sealed class CoverageRewriter : CSharpSyntaxRewriter
         if (node.ExpressionBody != null && node.AccessorList == null)
         {
             var getter = SyntaxFactory.AccessorDeclaration(SyntaxKind.GetAccessorDeclaration)
-                .WithBody(SyntaxFactory.Block(SyntaxFactory.ReturnStatement(node.ExpressionBody.Expression)));
+                .WithBody(SyntaxFactory.Block(MakeReturn(node.ExpressionBody.Expression)));
             var acc = SyntaxFactory.AccessorList(SyntaxFactory.SingletonList(getter));
             node = node.WithExpressionBody(null).WithAccessorList(acc)
                 .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.None));
@@ -186,6 +186,14 @@ public sealed class CoverageRewriter : CSharpSyntaxRewriter
     private static BlockSyntax Block(StatementSyntax s)
         => s is BlockSyntax b ? b : SyntaxFactory.Block(s);
 
+    // SyntaxFactory.ReturnStatement(expr) emits the "return" keyword with no
+    // trailing trivia. If the source expression had no leading trivia (common
+    // for expanded expression-bodied members like `=> _x`), the result renders
+    // as "return_x;". Give the expression a single-space leading trivia so the
+    // output always has a proper separator.
+    private static ReturnStatementSyntax MakeReturn(ExpressionSyntax expr)
+        => SyntaxFactory.ReturnStatement(expr.WithLeadingTrivia(SyntaxFactory.Space));
+
     private static TDecl ExpandExpressionBody<TDecl>(TDecl node) where TDecl : SyntaxNode
     {
         if (node is MethodDeclarationSyntax m && m.ExpressionBody != null && m.Body == null)
@@ -193,7 +201,7 @@ public sealed class CoverageRewriter : CSharpSyntaxRewriter
             var isVoid = m.ReturnType is PredefinedTypeSyntax p && p.Keyword.IsKind(SyntaxKind.VoidKeyword);
             var stmt = isVoid
                 ? (StatementSyntax)SyntaxFactory.ExpressionStatement(m.ExpressionBody.Expression)
-                : SyntaxFactory.ReturnStatement(m.ExpressionBody.Expression);
+                : MakeReturn(m.ExpressionBody.Expression);
             return (TDecl)(object)m.WithExpressionBody(null).WithBody(SyntaxFactory.Block(stmt))
                 .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.None));
         }
@@ -202,7 +210,7 @@ public sealed class CoverageRewriter : CSharpSyntaxRewriter
             var isVoid = lf.ReturnType is PredefinedTypeSyntax pp && pp.Keyword.IsKind(SyntaxKind.VoidKeyword);
             var stmt = isVoid
                 ? (StatementSyntax)SyntaxFactory.ExpressionStatement(lf.ExpressionBody.Expression)
-                : SyntaxFactory.ReturnStatement(lf.ExpressionBody.Expression);
+                : MakeReturn(lf.ExpressionBody.Expression);
             return (TDecl)(object)lf.WithExpressionBody(null).WithBody(SyntaxFactory.Block(stmt))
                 .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.None));
         }
