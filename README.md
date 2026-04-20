@@ -302,6 +302,15 @@ Colors: green = covered, red = missed, yellow = partial decision.
 - **Decisions show 0% after instrumentation** — ensure the shadow was
   actually rebuilt after `instrument`; stale `bin/obj` under the shadow
   will silently run old code. `analyze` always rebuilds.
+- **`Could not load file or assembly 'System.Runtime, Version=10.0.0.0'`** —
+  the .NET 10 runtime isn't installed. The CLI targets `net10.0`. Verify
+  with `dotnet --list-runtimes` — you need an entry like
+  `Microsoft.NETCore.App 10.0.x`. Installing the SDK alone (`dotnet-sdk-10.0`)
+  normally also installs the runtime; if not, install
+  `dotnet-runtime-10.0` explicitly. If you rebuilt after upgrading the
+  target framework, also wipe stale artifacts first:
+  `find . -type d \( -name bin -o -name obj \) -exec rm -rf {} +` then
+  `dotnet build`.
 
 ## Known limitations
 
