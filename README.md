@@ -16,7 +16,7 @@ The tool accepts any of three input shapes:
 
 | Input       | What happens                                                                 |
 |-------------|------------------------------------------------------------------------------|
-| `.cs` file  | Wrapped in a synthetic `net8.0` class library, then instrumented.            |
+| `.cs` file  | Wrapped in a synthetic `net10.0` class library, then instrumented.           |
 | `.csproj`   | That project (and the enclosing solution tree) is mirrored and instrumented. |
 | `.sln`      | Every `.csproj` referenced from the solution is instrumented.                |
 
@@ -52,9 +52,9 @@ truth-table pages, and `summary.txt` / `summary.json` for CI consumption.
 CSharpCoverage.sln
 src/
   CSharpCoverage.Runtime/   netstandard2.0 — probe API, observation buffer, flush
-  CSharpCoverage.Core/      net8.0 — Roslyn rewriter, map, MCDC analyzer
-  CSharpCoverage.Report/    net8.0 — HTML / text / JSON renderers
-  CSharpCoverage.Cli/       net8.0 console — `coverage instrument|report|analyze`
+  CSharpCoverage.Core/      net10.0 — Roslyn rewriter, map, MCDC analyzer
+  CSharpCoverage.Report/    net10.0 — HTML / text / JSON renderers
+  CSharpCoverage.Cli/       net10.0 console — `coverage instrument|report|analyze`
 tests/
   CSharpCoverage.Core.Tests/    unit tests
   CalculatorDemo.Coverable/     decision logic extracted from WPF MainWindow
@@ -66,10 +66,10 @@ CalculatorDemo/                 original WPF sample (net10.0-windows)
 
 ### Prerequisites
 
-- **.NET SDK 8.0** or newer. Verify with `dotnet --info`.
-  - Linux (Debian / Ubuntu): `sudo apt-get install -y dotnet-sdk-8.0`
+- **.NET SDK 10.0** or newer. Verify with `dotnet --info`.
+  - Linux (Debian / Ubuntu): `sudo apt-get install -y dotnet-sdk-10.0`
   - macOS (Homebrew): `brew install --cask dotnet-sdk`
-  - Windows: install from <https://dotnet.microsoft.com/download/dotnet/8.0>
+  - Windows: install from <https://dotnet.microsoft.com/download/dotnet/10.0>
 - For the manual WPF smoke on the original `CalculatorDemo`, you also need
   Windows and the `.NET 10 Desktop Runtime` (WPF workload). Everything else
   is cross-platform.
@@ -83,7 +83,7 @@ dotnet build CSharpCoverage.sln -c Debug
 ```
 
 The CLI is produced at
-`src/CSharpCoverage.Cli/bin/Debug/net8.0/coverage.dll`.
+`src/CSharpCoverage.Cli/bin/Debug/net10.0/coverage.dll`.
 
 ### Optional: install as a local tool
 
@@ -180,7 +180,7 @@ dotnet build ./_shadow/src/path/to/MyApp/MyApp.csproj -c Debug
 # (c) Drive the instrumented binary
 export COVERAGE_OUTPUT=$(pwd)/coverage.json   # Linux/macOS
 # set COVERAGE_OUTPUT=%cd%\coverage.json      # Windows cmd
-dotnet ./_shadow/src/path/to/MyApp/bin/Debug/net8.0/MyApp.dll  # or run the tests etc.
+dotnet ./_shadow/src/path/to/MyApp/bin/Debug/net10.0/MyApp.dll  # or run the tests etc.
 
 # (d) Render the report
 coverage report \
@@ -305,7 +305,7 @@ Colors: green = covered, red = missed, yellow = partial decision.
 
 ## Known limitations
 
-- Loose `.cs` input is wrapped in a synthetic `net8.0` library — no
+- Loose `.cs` input is wrapped in a synthetic `net10.0` library — no
   runnable coverage without a driver.
 - Source generators keyed off unmodified source may produce slightly
   different output post-rewrite.
