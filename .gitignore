@@ -2,6 +2,9 @@ bin/
 obj/
 _coverage_shadow/
 coverage-report/
+/report/
+coverage.json
+coverage.map.json
 *.user
 .vs/
 .idea/
