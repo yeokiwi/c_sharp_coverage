@@ -194,8 +194,7 @@ public static class HtmlReportRenderer
         return sb.ToString();
     }
 
-    private const string Css = """
-body { font-family: -apple-system, "Segoe UI", sans-serif; margin: 1.5rem; color: #222; }
+    private const string Css = @"body { font-family: -apple-system, ""Segoe UI"", sans-serif; margin: 1.5rem; color: #222; }
 h1, h2 { color: #333; }
 .mode { color: #666; }
 table.summary { border-collapse: collapse; width: 100%; }
@@ -226,5 +225,5 @@ table.truth td.f { background: #fde0e0; }
 table.truth td.na { color: #999; }
 li.ok { color: #27ae60; }
 li.miss { color: #c0392b; }
-""";
+";
 }

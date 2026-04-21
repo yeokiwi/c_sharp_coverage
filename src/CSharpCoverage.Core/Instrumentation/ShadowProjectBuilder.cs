@@ -317,10 +317,9 @@ public static class ShadowProjectBuilder
     private static string DirectoryBuildProps(string runtimeDll)
     {
         var abs = runtimeDll.Replace('\\', '/');
-        return $"""
-<Project>
+        return $@"<Project>
   <ItemGroup>
-    <Reference Include="CSharpCoverage.Runtime">
+    <Reference Include=""CSharpCoverage.Runtime"">
       <HintPath>{abs}</HintPath>
       <Private>true</Private>
     </Reference>
@@ -330,11 +329,10 @@ public static class ShadowProjectBuilder
     <RollForward>Major</RollForward>
   </PropertyGroup>
 </Project>
-""";
+";
     }
 
-    private static string SyntheticCsproj(string csPath) => $"""
-<Project Sdk="Microsoft.NET.Sdk">
+    private static string SyntheticCsproj(string csPath) => $@"<Project Sdk=""Microsoft.NET.Sdk"">
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
     <RollForward>Major</RollForward>
@@ -344,10 +342,10 @@ public static class ShadowProjectBuilder
     <Nullable>disable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="{Path.GetFileName(csPath)}" />
+    <Compile Include=""{Path.GetFileName(csPath)}"" />
   </ItemGroup>
 </Project>
-""";
+";
 
     private static string ShortHash(string s)
     {

@@ -32,21 +32,20 @@ internal static class CommandRouter
 
     private static int Help(int code)
     {
-        Console.WriteLine("""
-coverage — C# statement/decision/MCDC coverage
+        Console.WriteLine(@"coverage — C# statement/decision/MCDC coverage
 
 Usage:
   coverage instrument <target> [--output <dir>] [--runtime <path>] [--exclude <glob>]...
   coverage report     --data <json> --map <json> [--output <dir>]
                       [--mcdc unique-cause|masking] [--format html|text|json]...
-  coverage analyze    --project <csproj|sln> --driver "<shell>"
+  coverage analyze    --project <csproj|sln> --driver ""<shell>""
                       [--output <dir>] [--mcdc unique-cause|masking]
 
 Notes:
   instrument rewrites a shadow copy of <target> (file/csproj/sln) with runtime probes.
   report     consumes coverage.json + coverage.map.json and renders HTML/text.
   analyze    = instrument + dotnet build + driver + report (one-shot).
-""");
+");
         return code;
     }
 
