@@ -83,9 +83,69 @@ File selection:
         return (opts, pos);
     }
 
+    // Reject unknown flags with a helpful suggestion. Silently letting --ouput
+    // through (instead of --output) used to swallow the value and send output
+    // to the default path, which is a very confusing UX failure.
+    private static void RequireKnownFlags(Dictionary<string, List<string>> opts, string verb, IReadOnlyCollection<string> known)
+    {
+        foreach (var key in opts.Keys)
+        {
+            if (known.Contains(key)) continue;
+            var suggestion = ClosestMatch(key, known);
+            var hint = suggestion != null ? $" (did you mean --{suggestion}?)" : "";
+            throw new ArgumentException($"unknown flag --{key} for '{verb}'{hint}");
+        }
+    }
+
+    private static string? ClosestMatch(string input, IEnumerable<string> candidates)
+    {
+        string? best = null;
+        int bestDist = int.MaxValue;
+        foreach (var c in candidates)
+        {
+            var d = Levenshtein(input, c);
+            if (d < bestDist) { bestDist = d; best = c; }
+        }
+        // Only suggest when the edit distance is small relative to the length.
+        return bestDist <= Math.Max(2, input.Length / 3) ? best : null;
+    }
+
+    private static int Levenshtein(string a, string b)
+    {
+        if (a.Length == 0) return b.Length;
+        if (b.Length == 0) return a.Length;
+        var d = new int[a.Length + 1, b.Length + 1];
+        for (int i = 0; i <= a.Length; i++) d[i, 0] = i;
+        for (int j = 0; j <= b.Length; j++) d[0, j] = j;
+        for (int i = 1; i <= a.Length; i++)
+            for (int j = 1; j <= b.Length; j++)
+            {
+                int cost = a[i - 1] == b[j - 1] ? 0 : 1;
+                d[i, j] = Math.Min(Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1), d[i - 1, j - 1] + cost);
+            }
+        return d[a.Length, b.Length];
+    }
+
+    private static readonly HashSet<string> InstrumentFlags = new()
+    {
+        "output", "runtime", "include", "include-from", "exclude", "exclude-from", "verbose"
+    };
+
+    private static readonly HashSet<string> ReportFlags = new()
+    {
+        "data", "map", "output", "mcdc", "format", "threshold"
+    };
+
+    private static readonly HashSet<string> AnalyzeFlags = new()
+    {
+        "project", "test-project", "source-root", "driver", "output",
+        "runtime", "mcdc", "include", "include-from", "exclude", "exclude-from"
+    };
+
     private static int Instrument(string[] args)
     {
         var (opts, pos) = Parse(args);
+        RequireKnownFlags(opts, "instrument", InstrumentFlags);
         if (pos.Count < 1) { Console.Error.WriteLine("instrument requires a target"); return 1; }
 
         var io = new InstrumentOptions
@@ -116,6 +176,7 @@ File selection:
     private static int Report(string[] args)
     {
         var (opts, _) = Parse(args);
+        RequireKnownFlags(opts, "report", ReportFlags);
         string data = opts.GetValueOrDefault("data")?[0] ?? throw new ArgumentException("--data required");
         string mapPath = opts.GetValueOrDefault("map")?[0] ?? throw new ArgumentException("--map required");
         string outDir = opts.GetValueOrDefault("output")?[0] ?? "coverage-report";
@@ -158,6 +219,7 @@ File selection:
     private static int Analyze(string[] args)
     {
         var (opts, _) = Parse(args);
+        RequireKnownFlags(opts, "analyze", AnalyzeFlags);
         string target = opts.GetValueOrDefault("project")?[0] ?? throw new ArgumentException("--project required");
         string? testProjectRel = opts.GetValueOrDefault("test-project")?[0];
         string driver = opts.GetValueOrDefault("driver")?[0] ?? "dotnet test --no-build";
