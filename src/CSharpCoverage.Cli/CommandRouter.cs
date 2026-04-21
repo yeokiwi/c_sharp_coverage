@@ -35,16 +35,32 @@ internal static class CommandRouter
         Console.WriteLine(@"coverage — C# statement/decision/MCDC coverage
 
 Usage:
-  coverage instrument <target> [--output <dir>] [--runtime <path>] [--exclude <glob>]...
+  coverage instrument <target> [--output <dir>] [--runtime <path>]
+                      [--include <glob>]... [--include-from <file>]
+                      [--exclude <glob>]... [--exclude-from <file>] [--verbose]
   coverage report     --data <json> --map <json> [--output <dir>]
                       [--mcdc unique-cause|masking] [--format html|text|json]...
   coverage analyze    --project <csproj|sln> --driver ""<shell>""
+                      [--include <glob>]... [--include-from <file>]
+                      [--exclude <glob>]... [--exclude-from <file>]
                       [--output <dir>] [--mcdc unique-cause|masking]
 
 Notes:
   instrument rewrites a shadow copy of <target> (file/csproj/sln) with runtime probes.
   report     consumes coverage.json + coverage.map.json and renders HTML/text.
   analyze    = instrument + dotnet build + driver + report (one-shot).
+
+File selection:
+  By default every eligible .cs file under the target project is instrumented.
+  Pass --include one or more times to restrict instrumentation to an allow-list:
+    --include MainWindow.cs              (basename match)
+    --include ""**/Calculator*.cs""        (glob, matches anywhere in the tree)
+    --include src/Foo/Bar.cs             (project-relative path)
+  Globs are matched against the absolute path, the project-relative path, and
+  the basename — whichever first matches wins. Files passing no include are
+  copied verbatim and not rewritten. --exclude is a deny-list applied after.
+  --include-from / --exclude-from read patterns from a file, one per line
+  ('#' starts a comment, blank lines are ignored).
 ");
         return code;
     }
@@ -80,6 +96,11 @@ Notes:
             Verbose = opts.ContainsKey("verbose")
         };
         if (opts.TryGetValue("exclude", out var ex)) io.Excludes.AddRange(ex);
+        if (opts.TryGetValue("include", out var inc)) io.Includes.AddRange(inc);
+        if (opts.TryGetValue("include-from", out var incFiles))
+            foreach (var f in incFiles) io.Includes.AddRange(ReadGlobList(f));
+        if (opts.TryGetValue("exclude-from", out var excFiles))
+            foreach (var f in excFiles) io.Excludes.AddRange(ReadGlobList(f));
 
         var result = ShadowProjectBuilder.Run(io);
         Console.WriteLine($"Instrumented → {result.ShadowRoot}");
@@ -146,6 +167,12 @@ Notes:
         var io = new InstrumentOptions { Target = target };
         if (opts.TryGetValue("runtime", out var r)) io.RuntimeAssemblyPath = r[0];
         if (opts.TryGetValue("source-root", out var sr)) io.SourceRoot = sr[0];
+        if (opts.TryGetValue("include", out var inc)) io.Includes.AddRange(inc);
+        if (opts.TryGetValue("include-from", out var incFiles))
+            foreach (var f in incFiles) io.Includes.AddRange(ReadGlobList(f));
+        if (opts.TryGetValue("exclude", out var exc)) io.Excludes.AddRange(exc);
+        if (opts.TryGetValue("exclude-from", out var excFiles))
+            foreach (var f in excFiles) io.Excludes.AddRange(ReadGlobList(f));
 
         var instr = ShadowProjectBuilder.Run(io);
         Console.WriteLine($"[1/3] Instrumented → {instr.ShadowRoot}");
@@ -191,6 +218,20 @@ Notes:
             "--output", outDir,
             "--mcdc", mcdcStr
         });
+    }
+
+    // Read a list of glob patterns from a text file, one per line.
+    // Blank lines and lines starting with '#' are ignored.
+    private static IEnumerable<string> ReadGlobList(string path)
+    {
+        if (!File.Exists(path))
+            throw new FileNotFoundException($"glob list file not found: {path}");
+        foreach (var raw in File.ReadAllLines(path))
+        {
+            var line = raw.Trim();
+            if (line.Length == 0 || line.StartsWith("#")) continue;
+            yield return line;
+        }
     }
 
     private static int RunShell(string command, string workingDir, IDictionary<string, string?> env)
