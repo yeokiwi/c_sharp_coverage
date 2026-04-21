@@ -326,7 +326,8 @@ public static class ShadowProjectBuilder
     </Reference>
   </ItemGroup>
   <PropertyGroup>
-    <NoWarn>$(NoWarn);CS8602;CS8604;CS8619;CS0162;CS0168;CS0219;CS8600;CS0472</NoWarn>
+    <NoWarn>$(NoWarn);CS8602;CS8604;CS8619;CS0162;CS0168;CS0219;CS8600;CS0472;NETSDK1138</NoWarn>
+    <RollForward>Major</RollForward>
   </PropertyGroup>
 </Project>
 """;
@@ -335,7 +336,8 @@ public static class ShadowProjectBuilder
     private static string SyntheticCsproj(string csPath) => $"""
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
+    <RollForward>Major</RollForward>
     <OutputType>Library</OutputType>
     <EnableDefaultItems>false</EnableDefaultItems>
     <LangVersion>latest</LangVersion>

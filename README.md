@@ -16,7 +16,7 @@ The tool accepts any of three input shapes:
 
 | Input       | What happens                                                                 |
 |-------------|------------------------------------------------------------------------------|
-| `.cs` file  | Wrapped in a synthetic `net10.0` class library, then instrumented.           |
+| `.cs` file  | Wrapped in a synthetic `net6.0` class library, then instrumented.            |
 | `.csproj`   | That project (and the enclosing solution tree) is mirrored and instrumented. |
 | `.sln`      | Every `.csproj` referenced from the solution is instrumented.                |
 
@@ -52,27 +52,48 @@ truth-table pages, and `summary.txt` / `summary.json` for CI consumption.
 CSharpCoverage.sln
 src/
   CSharpCoverage.Runtime/   netstandard2.0 — probe API, observation buffer, flush
-  CSharpCoverage.Core/      net10.0 — Roslyn rewriter, map, MCDC analyzer
-  CSharpCoverage.Report/    net10.0 — HTML / text / JSON renderers
-  CSharpCoverage.Cli/       net10.0 console — `coverage instrument|report|analyze`
+  CSharpCoverage.Core/      net6.0 — Roslyn rewriter, map, MCDC analyzer
+  CSharpCoverage.Report/    net6.0 — HTML / text / JSON renderers
+  CSharpCoverage.Cli/       net6.0 console — `coverage instrument|report|analyze`
 tests/
   CSharpCoverage.Core.Tests/    unit tests
   CalculatorDemo.Coverable/     decision logic extracted from WPF MainWindow
   CalculatorDemo.Tests/         xUnit tests driving Coverable (56 tests)
 CalculatorDemo/                 original WPF sample (net10.0-windows)
+PhotoViewerDemo/                second WPF sample (net10.0-windows)
+
+All non-WPF projects target `net6.0` and declare `<RollForward>Major</RollForward>`
+(or `LatestMajor` on the CLI) so the same binaries run unchanged on
+SDK 6, SDK 8, and SDK 10 runtimes. The shadow build reuses the same
+TFM, so an `.sln` or `.csproj` being instrumented does not need to
+match the tool's TFM — the tool only cares that it can run `dotnet build`
+on the shadow.
 ```
 
 ## Installation
 
 ### Prerequisites
 
-- **.NET SDK 10.0** or newer. Verify with `dotnet --info`.
-  - Linux (Debian / Ubuntu): `sudo apt-get install -y dotnet-sdk-10.0`
+- **.NET SDK 6.0, 8.0, or 10.0.** The tool targets `net6.0` as the
+  lowest common denominator and rolls forward to whatever runtime is
+  installed. Verify the active SDK with `dotnet --info`.
+  - Linux (Debian / Ubuntu):
+    - SDK 6: `sudo apt-get install -y dotnet-sdk-6.0`
+    - SDK 8: `sudo apt-get install -y dotnet-sdk-8.0`
+    - SDK 10: `sudo apt-get install -y dotnet-sdk-10.0`
   - macOS (Homebrew): `brew install --cask dotnet-sdk`
-  - Windows: install from <https://dotnet.microsoft.com/download/dotnet/10.0>
-- For the manual WPF smoke on the original `CalculatorDemo`, you also need
-  Windows and the `.NET 10 Desktop Runtime` (WPF workload). Everything else
-  is cross-platform.
+  - Windows: install from
+    <https://dotnet.microsoft.com/download/dotnet/6.0>,
+    <https://dotnet.microsoft.com/download/dotnet/8.0>, or
+    <https://dotnet.microsoft.com/download/dotnet/10.0>.
+- Repository-level `global.json` pins the baseline to SDK `6.0.100`
+  with `rollForward: latestMajor`, so SDK 6, 8, and 10 are all
+  accepted automatically. Delete `global.json` if you want to force
+  a specific SDK from the environment.
+- For the manual WPF smoke on `CalculatorDemo` / `PhotoViewerDemo`,
+  you also need Windows and the `.NET 10 Desktop Runtime` (WPF workload)
+  — those samples still target `net10.0-windows`. Everything else is
+  cross-platform and works on 6 / 8 / 10.
 
 ### Clone and build
 
@@ -83,7 +104,7 @@ dotnet build CSharpCoverage.sln -c Debug
 ```
 
 The CLI is produced at
-`src/CSharpCoverage.Cli/bin/Debug/net10.0/coverage.dll`.
+`src/CSharpCoverage.Cli/bin/Debug/net6.0/coverage.dll`.
 
 ### Optional: install as a local tool
 
@@ -180,7 +201,7 @@ dotnet build ./_shadow/src/path/to/MyApp/MyApp.csproj -c Debug
 # (c) Drive the instrumented binary
 export COVERAGE_OUTPUT=$(pwd)/coverage.json   # Linux/macOS
 # set COVERAGE_OUTPUT=%cd%\coverage.json      # Windows cmd
-dotnet ./_shadow/src/path/to/MyApp/bin/Debug/net10.0/MyApp.dll  # or run the tests etc.
+dotnet ./_shadow/src/path/to/MyApp/bin/Debug/net6.0/MyApp.dll  # or run the tests etc.
 
 # (d) Render the report
 coverage report \
@@ -263,6 +284,8 @@ coverage instrument CalculatorDemo\CalculatorDemo.csproj --output .\_shadow
 dotnet build .\_shadow\src\CalculatorDemo\CalculatorDemo.csproj -c Debug
 set COVERAGE_OUTPUT=%cd%\coverage.json
 .\_shadow\src\CalculatorDemo\bin\Debug\net10.0-windows\CalculatorDemo.exe
+REM or for PhotoViewerDemo:
+REM .\_shadow\src\PhotoViewerDemo\bin\Debug\net10.0-windows\PhotoViewerDemo.exe
 REM click digits / operators / memory / sqrt / = / C / CE, then close the window
 coverage report --data coverage.json --map .\_shadow\coverage.map.json --output report-wpf
 ```
@@ -302,19 +325,34 @@ Colors: green = covered, red = missed, yellow = partial decision.
 - **Decisions show 0% after instrumentation** — ensure the shadow was
   actually rebuilt after `instrument`; stale `bin/obj` under the shadow
   will silently run old code. `analyze` always rebuilds.
-- **`Could not load file or assembly 'System.Runtime, Version=10.0.0.0'`** —
-  the .NET 10 runtime isn't installed. The CLI targets `net10.0`. Verify
-  with `dotnet --list-runtimes` — you need an entry like
-  `Microsoft.NETCore.App 10.0.x`. Installing the SDK alone (`dotnet-sdk-10.0`)
-  normally also installs the runtime; if not, install
-  `dotnet-runtime-10.0` explicitly. If you rebuilt after upgrading the
-  target framework, also wipe stale artifacts first:
+- **`Could not load file or assembly 'System.Runtime, Version=X.0.0.0'`** —
+  no .NET runtime matching the target framework is installed. The CLI
+  targets `net6.0` and declares `RollForward=LatestMajor`, so any of
+  `Microsoft.NETCore.App 6.0.x`, `8.0.x`, or `10.0.x` works. Verify with
+  `dotnet --list-runtimes`. If you see none, install a runtime
+  (e.g. `dotnet-runtime-8.0`) or the corresponding SDK. If you rebuilt
+  after upgrading the target framework, wipe stale artifacts first:
   `find . -type d \( -name bin -o -name obj \) -exec rm -rf {} +` then
   `dotnet build`.
+- **`Testhost process exited with error: You must install or update .NET`** —
+  the test project targets a runtime that isn't installed. Every test
+  csproj in this repository declares `<RollForward>Major</RollForward>`
+  so net6.0 test hosts roll forward to 8 or 10 automatically. If you
+  add a new test project, copy that property.
+- **Warning `NETSDK1138: The target framework 'net6.0' is out of support`** —
+  informational only; the tool deliberately targets net6.0 so the
+  same binaries build under SDK 6, 8, and 10. Silence it per-project
+  with `<NoWarn>$(NoWarn);NETSDK1138</NoWarn>` if desired.
+- **`dotnet test --no-build` fails with `The argument <X>.dll is invalid`** —
+  the `--no-build` flag expects the test assembly to already exist on
+  disk. When chaining through `analyze`, the shadow only builds the
+  target project, not the test project. Drop `--no-build` from the
+  driver so `dotnet test` builds the tests itself:
+  `--driver "dotnet test tests/Foo.Tests/Foo.Tests.csproj"`.
 
 ## Known limitations
 
-- Loose `.cs` input is wrapped in a synthetic `net10.0` library — no
+- Loose `.cs` input is wrapped in a synthetic `net6.0` library — no
   runnable coverage without a driver.
 - Source generators keyed off unmodified source may produce slightly
   different output post-rewrite.
