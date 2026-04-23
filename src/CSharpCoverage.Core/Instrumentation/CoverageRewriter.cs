@@ -8,6 +8,7 @@ namespace CSharpCoverage.Core.Instrumentation;
 public sealed class CoverageRewriter : CSharpSyntaxRewriter
 {
     private const string Runtime = "global::CSharpCoverage.Runtime.CoverageRuntime";
+    private const string OrigPosAnnotationKind = "coverage.origpos";
 
     private readonly InstrumentationContext _ctx;
     private readonly int _fileId;
@@ -16,6 +17,51 @@ public sealed class CoverageRewriter : CSharpSyntaxRewriter
     {
         _ctx = ctx;
         _fileId = fileId;
+    }
+
+    // Entry point for callers. Runs a pre-pass that stamps every node with its
+    // original (line,column), so the record sites below get accurate file-line
+    // numbers even when the rewriter reparents a node into a synthesized block
+    // (e.g. when `if (c) oneStmt;` is normalized to `if (c) { oneStmt; }`) and
+    // GetLocation() would otherwise report a position inside the synthesized
+    // fragment instead of inside the original file.
+    public SyntaxNode Rewrite(SyntaxNode root)
+    {
+        var annotated = new SourceLocationAnnotator().Visit(root) ?? root;
+        return Visit(annotated)!;
+    }
+
+    private sealed class SourceLocationAnnotator : CSharpSyntaxRewriter
+    {
+        public SourceLocationAnnotator() : base(visitIntoStructuredTrivia: false) { }
+
+        public override SyntaxNode? Visit(SyntaxNode? node)
+        {
+            if (node == null) return null;
+            var span = node.GetLocation().GetLineSpan().StartLinePosition;
+            var visited = base.Visit(node);
+            if (visited == null) return null;
+            return visited.WithAdditionalAnnotations(
+                new SyntaxAnnotation(OrigPosAnnotationKind, $"{span.Line}:{span.Character}"));
+        }
+    }
+
+    // Read the stamped original (line, column) if present; otherwise fall back
+    // to the node's current location. Returned values are zero-based — callers
+    // still add 1 to get a 1-based line/column.
+    private static (int line, int column) OrigPos(SyntaxNode n)
+    {
+        var ann = n.GetAnnotations(OrigPosAnnotationKind).FirstOrDefault();
+        if (ann?.Data is string data)
+        {
+            int colon = data.IndexOf(':');
+            if (colon > 0
+                && int.TryParse(data.Substring(0, colon), out var line)
+                && int.TryParse(data.Substring(colon + 1), out var col))
+                return (line, col);
+        }
+        var span = n.GetLocation().GetLineSpan().StartLinePosition;
+        return (span.Line, span.Character);
     }
 
     // ---- statement wrapping ----
@@ -125,7 +171,7 @@ public sealed class CoverageRewriter : CSharpSyntaxRewriter
                 decEntry.Cases.Add(new CaseEntry
                 {
                     Index = caseIdx,
-                    Line = lbl.GetLocation().GetLineSpan().StartLinePosition.Line + 1,
+                    Line = OrigPos(lbl).line + 1,
                     Label = lbl.ToString().Trim()
                 });
             }
@@ -219,26 +265,26 @@ public sealed class CoverageRewriter : CSharpSyntaxRewriter
 
     private void RecordStatement(int id, StatementSyntax s)
     {
-        var line = s.GetLocation().GetLineSpan().StartLinePosition;
+        var (line, col) = OrigPos(s);
         _ctx.Map.Statements.Add(new StatementEntry
         {
             FileId = _fileId,
             Id = id,
-            Line = line.Line + 1,
-            Column = line.Character + 1,
+            Line = line + 1,
+            Column = col + 1,
             Text = Truncate(s.ToString(), 120)
         });
     }
 
     private DecisionEntry RecordDecision(int id, DecisionKind kind, ExpressionSyntax expr)
     {
-        var line = expr.GetLocation().GetLineSpan().StartLinePosition;
+        var (line, col) = OrigPos(expr);
         var e = new DecisionEntry
         {
             FileId = _fileId,
             Id = id,
-            Line = line.Line + 1,
-            Column = line.Character + 1,
+            Line = line + 1,
+            Column = col + 1,
             Kind = kind,
             Text = Truncate(expr.ToString(), 200)
         };
@@ -280,12 +326,12 @@ public sealed class CoverageRewriter : CSharpSyntaxRewriter
             return n;
         }
         var leafIdx = leafCount++;
-        var linePos = expr.GetLocation().GetLineSpan().StartLinePosition;
+        var (line, col) = OrigPos(expr);
         entry.Conditions.Add(new ConditionEntry
         {
             Index = leafIdx,
-            Line = linePos.Line + 1,
-            Column = linePos.Character + 1,
+            Line = line + 1,
+            Column = col + 1,
             Text = Truncate(expr.ToString(), 80)
         });
         return new BoolNode { Op = BoolOp.Leaf, LeafIndex = leafIdx };

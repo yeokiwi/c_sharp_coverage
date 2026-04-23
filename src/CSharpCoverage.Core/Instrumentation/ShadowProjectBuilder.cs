@@ -130,7 +130,7 @@ public static class ShadowProjectBuilder
 
                 var tree = CSharpSyntaxTree.ParseText(original, path: cs);
                 var rewriter = new CoverageRewriter(ctx, fileId);
-                var newRoot = rewriter.Visit(tree.GetRoot())!;
+                var newRoot = rewriter.Rewrite(tree.GetRoot());
                 File.WriteAllText(cs, newRoot.ToFullString());
                 if (opts.Verbose) Console.WriteLine($"  rewrite:             {relToProj}");
                 instrumented++;
